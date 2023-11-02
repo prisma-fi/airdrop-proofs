@@ -35,7 +35,9 @@ class MerkleTree:
 
     @staticmethod
     def get_next_layer(elements):
-        return [MerkleTree.combined_hash(a, b) for a, b in zip_longest(elements[::2], elements[1::2])]
+        return [
+            MerkleTree.combined_hash(a, b) for a, b in zip_longest(elements[::2], elements[1::2])
+        ]
 
     @staticmethod
     def combined_hash(a, b):
@@ -43,14 +45,25 @@ class MerkleTree:
             return b
         if b is None:
             return a
-        return web3.keccak(b''.join(sorted([a, b])))
+        return web3.keccak(b"".join(sorted([a, b])))
 
 
-def generate_proof(balances, total_distribution):
-    assert total_distribution < 1e18, "Total distribution must be / 1e18 to account for LOCK_TO_TOKEN_RATIO"
-    total_vecrv = sum(balances.values())
-    balances = {k: int(Fraction(v*total_distribution, total_vecrv)) for k, v in balances.items()}
-    balances = {k: v for k, v in balances.items() if v}
+def generate_proof(balances, total_distribution, min_amount):
+    assert (
+        total_distribution < 1e18
+    ), "Total distribution must be / 1e18 to account for LOCK_TO_TOKEN_RATIO"
+
+    # calculate initial distribution
+    total = sum(balances.values())
+    adjusted = {k: int(Fraction(v * total_distribution, total)) for k, v in balances.items()}
+    adjusted = {k: v for k, v in adjusted.items() if v >= min_amount}
+
+    # recalculate, removing recipients who are below `min_amount`
+    balances = {k: v for k, v in balances.items() if k in adjusted}
+    total = sum(balances.values())
+    balances = {
+        k.lower(): int(Fraction(v * total_distribution, total)) for k, v in balances.items()
+    }
 
     # handle any rounding errors
     addresses = deque(balances)
@@ -60,16 +73,18 @@ def generate_proof(balances, total_distribution):
 
     assert sum(balances.values()) == total_distribution
 
-    elements = [(index, account, balances[account]) for index, account in enumerate(sorted(balances))]
-    nodes = [encode_hex(encode_abi_packed(['uint', 'address', 'uint'], el)) for el in elements]
+    elements = [
+        (index, account, balances[account]) for index, account in enumerate(sorted(balances))
+    ]
+    nodes = [encode_hex(encode_abi_packed(["uint", "address", "uint"], el)) for el in elements]
     tree = MerkleTree(nodes)
     distribution = {
-        'merkleRoot': encode_hex(tree.root),
-        'tokenTotal': hex(sum(balances.values())),
-        'claims': {
-            user: {'index': index, 'amount': hex(amount), 'proof': tree.get_proof(nodes[index])}
+        "merkleRoot": encode_hex(tree.root),
+        "tokenTotal": hex(sum(balances.values())),
+        "claims": {
+            user: {"index": index, "amount": hex(amount), "proof": tree.get_proof(nodes[index])}
             for index, user, amount in elements
         },
     }
-    print(f'merkle root: {encode_hex(tree.root)}')
+    print(f"merkle root: {encode_hex(tree.root)}")
     return distribution

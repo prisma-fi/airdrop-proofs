@@ -4,6 +4,8 @@ Snapshot data and airdrop merkle proofs for Prisma airdrops.
 
 - `data/vecrv.json` - veCRV balances that voted for Curve DAO Ownership vote 394. Convex's vote has been substituted with weights of individual vlCLX voters.
 
+- `proofs/proof-0xd49d86b001fe35bc745bc6e467b3cc18cb14b817.json` - Merkle proof for veCRV airdrop. Claimants who would receive less than 10 tokens were removed.
+
 ### Note
 
 Airdrops are not yet finalized. All data published prior to the actual airdrop is for reference only and subject to change.

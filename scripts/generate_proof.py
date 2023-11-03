@@ -48,28 +48,19 @@ class MerkleTree:
         return web3.keccak(b"".join(sorted([a, b])))
 
 
-def generate_proof(balances, total_distribution, min_amount):
+def generate_proof(balances, total_distribution):
     assert (
         total_distribution < 1e18
     ), "Total distribution must be / 1e18 to account for LOCK_TO_TOKEN_RATIO"
-
-    # calculate initial distribution
-    total = sum(balances.values())
-    adjusted = {k: int(Fraction(v * total_distribution, total)) for k, v in balances.items()}
-    adjusted = {k: v for k, v in adjusted.items() if v >= min_amount}
-
-    # recalculate, removing recipients who are below `min_amount`
-    balances = {k: v for k, v in balances.items() if k in adjusted}
-    total = sum(balances.values())
+    total_vecrv = sum(balances.values())
     balances = {
-        k.lower(): int(Fraction(v * total_distribution, total)) for k, v in balances.items()
+        k.lower(): int(Fraction(v * total_distribution, total_vecrv)) for k, v in balances.items()
     }
 
     # handle any rounding errors
-    addresses = deque(balances)
+    addresses = sorted(balances, key=lambda k: balances[k], reverse=True)
     while sum(balances.values()) < total_distribution:
-        balances[addresses[0]] += 1
-        addresses.rotate()
+        balances[addresses.pop()] += 1
 
     assert sum(balances.values()) == total_distribution
 

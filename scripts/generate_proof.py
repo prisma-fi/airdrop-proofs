@@ -48,34 +48,56 @@ class MerkleTree:
         return web3.keccak(b"".join(sorted([a, b])))
 
 
-def generate_proof(balances, total_distribution):
+def generate_proof(balances, airdrop_proxy, total_distribution):
     assert (
         total_distribution < 1e18
     ), "Total distribution must be / 1e18 to account for LOCK_TO_TOKEN_RATIO"
-    total_vecrv = sum(balances.values())
+    total_balance = sum(balances.values())
     balances = {
-        k.lower(): int(Fraction(v * total_distribution, total_vecrv)) for k, v in balances.items()
+        k.lower(): int(Fraction(v * total_distribution, total_balance)) for k, v in balances.items()
     }
 
-    # handle any rounding errors
+    # handle rounding errors (give to smallest climants)
     addresses = sorted(balances, key=lambda k: balances[k], reverse=True)
     while sum(balances.values()) < total_distribution:
         balances[addresses.pop()] += 1
 
     assert sum(balances.values()) == total_distribution
+    assert min(balances.values()) != 0
 
+    addresses = sorted(balances)
+
+    # prepare base tree (all claims to airdrop_proxy)
     elements = [
-        (index, account, balances[account]) for index, account in enumerate(sorted(balances))
+        (index, airdrop_proxy, balances[account]) for index, account in enumerate(addresses)
     ]
-    nodes = [encode_hex(encode_abi_packed(["uint", "address", "uint"], el)) for el in elements]
-    tree = MerkleTree(nodes)
+    base_nodes = [encode_hex(encode_abi_packed(["uint", "address", "uint"], el)) for el in elements]
+    base_tree = MerkleTree(base_nodes)
+
+    # prepare proxy tree
+    elements = [(index, account, balances[account]) for index, account in enumerate(addresses)]
+    proxy_nodes = [
+        encode_hex(encode_abi_packed(["uint", "address", "uint"], el)) for el in elements
+    ]
+    proxy_tree = MerkleTree(proxy_nodes)
+
     distribution = {
-        "merkleRoot": encode_hex(tree.root),
+        "merkleRootBase": encode_hex(base_tree.root),
+        "merkleRootProxy": encode_hex(proxy_tree.root),
         "tokenTotal": hex(sum(balances.values())),
         "claims": {
-            user: {"index": index, "amount": hex(amount), "proof": tree.get_proof(nodes[index])}
+            user: {
+                "index": index,
+                "amount": hex(amount),
+                "proof": [
+                    proxy_tree.get_proof(proxy_nodes[index]),
+                    base_tree.get_proof(base_nodes[index]),
+                ],
+            }
             for index, user, amount in elements
         },
     }
-    print(f"merkle root: {encode_hex(tree.root)}")
+
+    print(f"base merkle root: {encode_hex(base_tree.root)}")
+    print(f"proxy merkle root: {encode_hex(proxy_tree.root)}")
     return distribution

@@ -57,7 +57,7 @@ def generate_proof(balances, airdrop_proxy, total_distribution):
         k.lower(): int(Fraction(v * total_distribution, total_balance)) for k, v in balances.items()
     }
 
-    # handle rounding errors (give to smallest climants)
+    # handle rounding errors (give to smallest claimants)
     addresses = sorted(balances, key=lambda k: balances[k], reverse=True)
     while sum(balances.values()) < total_distribution:
         balances[addresses.pop()] += 1

@@ -165,6 +165,7 @@ def fetch_raw_data():
 
 def calculate_points():
     trove_data = json.load(open("data/trove-debt.json"))
+    trove_keys = sorted(trove_data.keys())
     user_list = set(z for v in trove_data.values() for x in v.values() for z in x)
     user_list.discard(DEPLOYER)
 
@@ -177,20 +178,19 @@ def calculate_points():
         if not int(block) % 10000:
             print(f"{block} / {END_BLOCK}")
 
-        for data in trove_data.values():
-            if str(block) in data:
-                for user, debt in data[str(block)].items():
+        for i in range(4):
+            if str(block) in trove_data[trove_keys[i]]:
+                for user, debt in trove_data[trove_keys[i]][str(block)].items():
                     if user == DEPLOYER:
                         continue
-                    if user in user_balances:
-                        total += debt - user_balances[user]
-                        user_balances[user] = debt
-                    else:
-                        user_balances[user] = debt
-                        total += debt
+                    if user not in user_balances:
+                        user_balances[user] = [0, 0, 0, 0]
 
-        for user, balance in user_balances.items():
-            user_trove_points[user] += balance / total
+                    total += debt - user_balances[user][i]
+                    user_balances[user][i] = debt
+
+        for user, balances in user_balances.items():
+            user_trove_points[user] += sum(balances) / total
 
     # get blocks where each account has at least one trove open
     user_active = {k: [] for k in user_list}
